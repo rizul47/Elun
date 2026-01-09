@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+
+# Build artifacts (we rebuild in Docker)
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# Test files
+*.spec
+*.log
+
+# Temp files
+temp_upload/
+test_img/*.jpg
+test_img/*.png
+
+# Large unnecessary folders in Real-ESRGAN
+backend/Real-ESRGAN/.git/
+backend/Real-ESRGAN/docs/
+backend/Real-ESRGAN/tests/
+backend/Real-ESRGAN/assets/
+backend/Real-ESRGAN/scripts/
+backend/Real-ESRGAN/.github/
+
+# Large unnecessary folders in face-parsing
+backend/face-parsing.PyTorch/.git/
+backend/face-parsing.PyTorch/makeup/
+backend/face-parsing.PyTorch/class_index_debug/
