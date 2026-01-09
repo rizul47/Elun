@@ -386,7 +386,12 @@ if __name__ == "__main__":
     # Run script 1 - Use relative path
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
-    test_img_path = os.path.join(project_root, "test_img")
+    
+    # Accept image path from command line, default to test_img if not provided
+    if len(sys.argv) > 1:
+        test_img_path = sys.argv[1]
+    else:
+        test_img_path = os.path.join(project_root, "test_img")
     
     evaluate(
         dspth=test_img_path,

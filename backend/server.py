@@ -173,7 +173,7 @@ async def process_image(
 
     try:
         completed = subprocess.run(
-            ["python", str(FACE_PARSING_SCRIPT)],
+            ["python", str(FACE_PARSING_SCRIPT), str(final_input_for_face_parsing)],
             cwd=str(FACE_PARSING_DIR),
             capture_output=True,
             text=True,
