@@ -431,16 +431,13 @@ const App = () => {
       <footer className="w-full py-8 bg-black/90 flex flex-col items-center text-gray-400">
         <div className="flex justify-center gap-6 mt-4">
           <a
-            href="https://www.linkedin.com/in/yourprofile"
+            href="https://www.linkedin.com/in/rizulgarg2159"
             aria-label="LinkedIn"
             className="hover:text-white transition-colors"
           >
             <Linkedin className="w-6 h-6" />
           </a>
         </div>
-        <p className="mt-6 text-sm">
-          &copy; 2025 Symbol Art. All Rights Reserved.
-        </p>
       </footer>
     </div>
   );
