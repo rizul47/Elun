@@ -62,7 +62,7 @@ const App = () => {
 
     try {
       setIsProcessing(true);
-      const res = await fetch("/api/process", {
+      const res = await fetch("/process", {
         method: "POST",
         body: fd,
       });
