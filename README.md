@@ -1,14 +1,15 @@
----
-title: Elun
-emoji: ⚡
-colorFrom: green
-colorTo: gray
-sdk: gradio
-sdk_version: 6.2.0
-app_file: app.py
+﻿---
+title: Symbol Art
+emoji: 
+colorFrom: cyan
+colorTo: purple
+sdk: docker
 pinned: false
 license: openrail
-short_description: Create a math face of yourself
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+# Symbol Art - Mathematical Face Generator
+
+Transform any face image into a breathtaking masterpiece of mathematical symbols!
+
+See README in the repository for full details and credits.
