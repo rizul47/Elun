@@ -71,7 +71,16 @@ def evaluate(respth='./res/test_res', dspth='./data', cp='model_final_diss.pth')
     ])
 
     with torch.no_grad():
-        for image_path in os.listdir(dspth):
+        # Handle both file path and directory path
+        if os.path.isfile(dspth):
+            # Single file passed
+            image_paths = [os.path.basename(dspth)]
+            dspth = os.path.dirname(dspth)
+        else:
+            # Directory passed
+            image_paths = os.listdir(dspth)
+        
+        for image_path in image_paths:
             img = Image.open(osp.join(dspth, image_path)).convert('RGB')
             image = img.resize((512, 512), Image.BILINEAR)
             img_tensor = to_tensor(image)
