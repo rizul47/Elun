@@ -224,7 +224,13 @@ def create_math_face():
         return max(min_size, int(base * size_factor))
 
     def load_font(size):
-        fonts = ["cour.ttf", "arial.ttf"]
+        # Prioritize fonts with math symbol support
+        fonts = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuMathTeXGyre.ttf",  # Math symbols
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",     # Fallback
+            "cour.ttf", 
+            "arial.ttf"
+        ]
         for font_name in fonts:
             try:
                 return ImageFont.truetype(font_name, size)

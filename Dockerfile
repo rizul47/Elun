@@ -31,7 +31,9 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libgomp1 \
     fonts-dejavu-core \
+    fonts-dejavu-extra \
     fonts-freefont-ttf \
+    fonts-stix \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
