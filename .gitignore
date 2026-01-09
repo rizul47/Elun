@@ -1,0 +1,36 @@
+﻿# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+# Build outputs
+backend/dist/
+backend/temp_upload/
+backend/test_img/*.jpg
+backend/test_img/*.png
+backend/Real-ESRGAN/results/
+backend/Real-ESRGAN/inputs/
+backend/ImageUpscaler/Real-ESRGAN/results/
+backend/ImageUpscaler/Real-ESRGAN/inputs/
+backend/Divided\ Regions/
