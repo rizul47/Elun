@@ -218,7 +218,15 @@ def health_check():
 
 
 # --- Serve React Frontend (Static Files) ---
-# This must be AFTER all API routes
+# Serve index.html for root and SPA routing
+@app.get("/", response_class=FileResponse)
+async def serve_index():
+    dist_path = BACKEND_DIR / "dist" / "index.html"
+    if dist_path.exists():
+        return dist_path
+    return {"error": "Frontend not built"}
+
+# Mount other static assets
 dist_path = BACKEND_DIR / "dist"
-if dist_path.exists():
-    app.mount("/", StaticFiles(directory=str(dist_path), html=True), name="static")
+if dist_path.exists() and (dist_path / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(dist_path / "assets")), name="assets")
