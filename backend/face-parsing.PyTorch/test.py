@@ -175,8 +175,6 @@ def create_math_face():
     17: ['Σ', 'π', '∑', 'λ', 'Ψ', 'Ω']         # Hair (alt / background overlap) n
 }
 
-
-    # **NEW: Region-specific opacity levels for visual distinction**
     region_opacity_map = {
         4: 170, 5: 170,                   # Eyes - full opacity (100%)
         12: 170, 13: 170,                  # Lips - full opacity (100%)
@@ -264,8 +262,8 @@ def create_math_face():
     global_width, global_height = max_w, max_h 
     canvas = Image.new('RGBA', (global_width, global_height), (0, 0, 0, 255))
 
-    print(f"✅ Canvas initialized: {global_width}x{global_height}")
-    print("🎨 Creating gift-worthy mathematical face...")
+    print(f" Canvas initialized: {global_width}x{global_height}")
+    print(" Creating gift-worthy mathematical face...")
 
     # INITIALIZE SYMBOL LOG
     symbol_log = []

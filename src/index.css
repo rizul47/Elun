@@ -1,3 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Great+Vibes&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    font-family: 'Cormorant Garamond', serif;
+    background-color: #050505;
+    color: #e0e0e0;
+}
+
+body {
+    background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #000000 100%);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
