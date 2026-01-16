@@ -53,8 +53,8 @@ def run_esrgan_upscale(script_dir: Path, input_output_dir: Path, input_file_name
         "-n", "RealESRGAN_x4plus", 
         "-i", str(input_output_dir / "inputs" / input_file_name), 
         "-o", str(input_output_dir / "results/"),
-        "-t", "128",  # Smaller tiles for limited memory on HF free tier
-        "--fp32"  # Use FP32 for CPU compatibility
+        "-t", "64",  # Smaller tiles = faster processing
+        "--tile_pad", "8"  # Reduce tile padding for speed
     ]
     
     sys.stderr.write(f"DEBUG: Running ESRGAN Step {step} with command: {' '.join(command)}\n")

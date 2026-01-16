@@ -131,10 +131,9 @@ def extract_regions():
 
         mask = (parsing == idx).astype(np.uint8)
 
-        # Resize mask to match original image if needed:
+        # Resize mask to match original image if needed (using cv2 for speed):
         if mask.shape[:2] != orig.shape[:2]:
-            mask = np.array(Image.fromarray(mask * 255).resize(
-                (orig.shape[1], orig.shape[0]), resample=Image.NEAREST)) // 255
+            mask = cv2.resize(mask, (orig.shape[1], orig.shape[0]), interpolation=cv2.INTER_NEAREST)
 
         # Multiply to get only that region in color
         part_image = orig * mask[:, :, None]
@@ -221,20 +220,41 @@ def create_math_face():
         size_factor *= region_importance
         return max(min_size, int(base * size_factor))
 
+    # FONT CACHE - avoid repeated font loading (major speedup!)
+    font_cache = {}
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuMathTeXGyre.ttf",  # Math symbols
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",     # Fallback
+        "cour.ttf", 
+        "arial.ttf"
+    ]
+    default_font = None
+    for font_path in font_paths:
+        try:
+            default_font = ImageFont.truetype(font_path, 12)
+            break
+        except (IOError, OSError):
+            continue
+    if default_font is None:
+        default_font = ImageFont.load_default()
+    
     def load_font(size):
-        # Prioritize fonts with math symbol support
-        fonts = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuMathTeXGyre.ttf",  # Math symbols
-            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",     # Fallback
-            "cour.ttf", 
-            "arial.ttf"
-        ]
-        for font_name in fonts:
+        # Check cache first (huge speedup!)
+        if size in font_cache:
+            return font_cache[size]
+        
+        # Try to load font at desired size
+        for font_path in font_paths:
             try:
-                return ImageFont.truetype(font_name, size)
+                font = ImageFont.truetype(font_path, size)
+                font_cache[size] = font
+                return font
             except (IOError, OSError):
                 continue
-        return ImageFont.load_default()
+        
+        # Fallback to default
+        font_cache[size] = default_font
+        return default_font
 
     # ---------------- Pre-scan regions to set canvas ----------------
     sizes = []
@@ -282,16 +302,29 @@ def create_math_face():
         img = np.array(img_pil)
         gray = img.mean(axis=2).astype(np.uint8)
         mask = (gray > 10).astype(np.uint8) # Mask will have region_height, region_width
+        
+        # Pre-compute pixel count for region
+        pixel_count = np.sum(mask)
+        if pixel_count == 0:
+            print(f"Region {region_id}: skipped (empty)")
+            continue
 
         base_font, step = region_style_map.get(region_id, (9, 6))
         region_importance = region_importance_map.get(region_id, 1.0)
         symbols = region_symbols_map.get(region_id, ['·']) # Added a fallback symbol
+        
+        # Dynamic step sizing: larger step for smaller regions (speedup!)
+        adaptive_step = step
+        if pixel_count < 5000:
+            adaptive_step = max(step, int(step * 1.5))
+        elif pixel_count < 2000:
+            adaptive_step = max(step, int(step * 2.0))
 
         symbols_placed_in_region = 0 
 
         # Iterate using the current region's dimensions (region_height, region_width)
-        for y in range(0, region_height, step):
-            for x in range(0, region_width, step):
+        for y in range(0, region_height, adaptive_step):
+            for x in range(0, region_width, adaptive_step):
                 # Ensure x and y are within the mask's bounds before accessing.
                 if not (0 <= y < region_height and 0 <= x < region_width):
                     continue
