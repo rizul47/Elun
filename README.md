@@ -1,4 +1,14 @@
-﻿# Elun - Image Processing Pipeline
+﻿---
+title: Elun
+emoji: 🎨
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+license: mit
+---
+
+# Elun - Image Processing Pipeline
 
 A full-stack application that processes images through face parsing and upscaling using Real-ESRGAN and face-parsing.PyTorch models.
 
