@@ -132,16 +132,19 @@ async def process_image(
         # ESRGAN Step 1
         run_esrgan_upscale(ESRGAN_SCRIPT.parent, ESRGAN_ROOT, input_file_name, 1)
         
-        # Real-ESRGAN outputs to results/ or results/--fp32/ or results/[model_name]/
-        # Search recursively for test_out.png
-        output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob(f"**/test_out.png"))
+        # Search for output files - try multiple patterns
+        output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob("*.png"))  # Direct children
         if not output_files_step1:
-            output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob(f"**/*.png"))
+            output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob("*/*.png"))  # One level deep
+        if not output_files_step1:
+            output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob("**/*.png"))  # Recursive
         
         if not output_files_step1:
-            output_contents = ", ".join([p.name for p in ESRGAN_OUTPUT_DIR.rglob("*")])
+            output_contents = list(ESRGAN_OUTPUT_DIR.rglob("*"))
+            content_names = [str(p.relative_to(ESRGAN_OUTPUT_DIR)) for p in output_contents[:20]]
             raise HTTPException(status_code=500, 
-                detail=f"ESRGAN Step 1 output not found. Dir contents: {output_contents}")
+                detail=f"ESRGAN Step 1 output not found. Directory: {ESRGAN_OUTPUT_DIR}. Contents: {content_names}")
+        
         
         first_output_image = max(output_files_step1, key=lambda p: p.stat().st_mtime)
 
@@ -153,10 +156,12 @@ async def process_image(
             shutil.copy(first_output_image, ESRGAN_INPUT_DIR / input_file_name)
             run_esrgan_upscale(ESRGAN_SCRIPT.parent, ESRGAN_ROOT, input_file_name, 2)
 
-            # Search recursively for output files from Step 2
-            output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob(f"**/test_out.png"))
+            # Search for output files from Step 2
+            output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob("*.png"))
             if not output_files_step2:
-                output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob(f"**/*.png"))
+                output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob("*/*.png"))
+            if not output_files_step2:
+                output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob("**/*.png"))
             
             if not output_files_step2:
                 raise HTTPException(status_code=500, detail="ESRGAN Step 2 output not found.")
