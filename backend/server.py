@@ -47,14 +47,24 @@ def run_esrgan_upscale(script_dir: Path, input_output_dir: Path, input_file_name
     script_dir: Directory where inference_realesrgan.py is located
     input_output_dir: Directory containing inputs/ and results/ folders
     """
+    input_path = input_output_dir / "inputs" / input_file_name
+    output_path = input_output_dir / "results/"
+    
+    # Verify input file exists
+    if not input_path.exists():
+        raise HTTPException(status_code=500, detail=f"ESRGAN input file not found: {input_path}")
+    
+    sys.stderr.write(f"DEBUG: ESRGAN Step {step} - Input: {input_path}\n")
+    sys.stderr.write(f"DEBUG: ESRGAN Step {step} - Output dir: {output_path}\n")
+    
     command = [
         "python", 
         "inference_realesrgan.py", 
         "-n", "RealESRGAN_x4plus", 
-        "-i", str(input_output_dir / "inputs" / input_file_name), 
-        "-o", str(input_output_dir / "results/"),
-        "-t", "64",  # Smaller tiles = faster processing
-        "--tile_pad", "8"  # Reduce tile padding for speed
+        "-i", str(input_path), 
+        "-o", str(output_path),
+        "-t", "64",
+        "--tile_pad", "8"
     ]
     
     sys.stderr.write(f"DEBUG: Running ESRGAN Step {step} with command: {' '.join(command)}\n")
@@ -76,6 +86,8 @@ def run_esrgan_upscale(script_dir: Path, input_output_dir: Path, input_file_name
         raise HTTPException(status_code=500, detail=f"ESRGAN upscale Step {step} failed: {error_detail}")
 
     if completed:
+        sys.stderr.write(f"ESRGAN Step {step} stdout:\n{completed.stdout}\n")
+        sys.stderr.write(f"ESRGAN Step {step} stderr:\n{completed.stderr}\n")
         sys.stderr.write(f"--- ESRGAN Step {step} SUCCESS ---\n")
 
     return completed
