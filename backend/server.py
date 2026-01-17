@@ -54,6 +54,27 @@ def run_esrgan_upscale(script_dir: Path, input_output_dir: Path, input_file_name
     if not input_path.exists():
         raise HTTPException(status_code=500, detail=f"ESRGAN input file not found: {input_path}")
     
+    # Optimization: Adaptive tile size based on image dimensions
+    try:
+        img = Image.open(input_path)
+        img_area = img.size[0] * img.size[1]
+        
+        if img_area > 200000:  # Large image
+            tile_size = "8"
+            tile_pad = "1"
+        elif img_area > 100000:  # Medium image
+            tile_size = "12"
+            tile_pad = "2"
+        else:  # Small image
+            tile_size = "16"
+            tile_pad = "2"
+        
+        sys.stderr.write(f"DEBUG: ESRGAN adaptive settings - Image: {img.size}, Tile: {tile_size}x{tile_size}\n")
+    except Exception as e:
+        tile_size = "16"
+        tile_pad = "2"
+        sys.stderr.write(f"DEBUG: Using default tile settings: {e}\n")
+    
     sys.stderr.write(f"DEBUG: ESRGAN Step {step} - Input: {input_path}\n")
     sys.stderr.write(f"DEBUG: ESRGAN Step {step} - Output dir: {output_path}\n")
     
@@ -63,8 +84,9 @@ def run_esrgan_upscale(script_dir: Path, input_output_dir: Path, input_file_name
         "-n", "RealESRGAN_x2plus",  # Faster 2x upscaling instead of 4x
         "-i", str(input_path), 
         "-o", str(output_path),
-        "-t", "16",  # Very small tiles for CPU
-        "--tile_pad", "2"
+        "-t", tile_size,  # Adaptive tile size
+        "--tile_pad", tile_pad,  # Minimal padding
+        "--fp32"  # Force full precision on CPU
     ]
     
     sys.stderr.write(f"DEBUG: Running ESRGAN Step {step} with command: {' '.join(command)}\n")
@@ -133,6 +155,25 @@ async def process_image(
             out.write(data)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {exc}")
+
+    # --- Optimization: Pre-process input image for faster upscaling ---
+    try:
+        img = Image.open(esrgan_initial_input_path)
+        
+        # Optimize 1: Compress if too large (save with lower JPG quality)
+        if img.size[0] > 800 or img.size[1] > 800:
+            img.thumbnail((800, 800), Image.LANCZOS)
+            img.save(esrgan_initial_input_path, quality=85)
+            sys.stderr.write(f"DEBUG: Pre-compressed input to {img.size}\n")
+        
+        # Optimize 2: Convert to RGB if needed (RGBA → RGB)
+        if img.mode != "RGB":
+            img_rgb = Image.new("RGB", img.size, (255, 255, 255))
+            img_rgb.paste(img, mask=img.split()[3] if img.mode == "RGBA" else None)
+            img_rgb.save(esrgan_initial_input_path, quality=90)
+            sys.stderr.write(f"DEBUG: Converted {img.mode} to RGB\n")
+    except Exception as e:
+        sys.stderr.write(f"DEBUG: Pre-processing warning (non-critical): {e}\n")
 
     # --- Handle ESRGAN Quality Options ---
     if quality == "low":
