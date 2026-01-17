@@ -60,11 +60,11 @@ def run_esrgan_upscale(script_dir: Path, input_output_dir: Path, input_file_name
     command = [
         "python", 
         "inference_realesrgan.py", 
-        "-n", "RealESRGAN_x4plus", 
+        "-n", "RealESRGAN_x2plus",  # Faster 2x upscaling instead of 4x
         "-i", str(input_path), 
         "-o", str(output_path),
-        "-t", "64",
-        "--tile_pad", "8"
+        "-t", "16",  # Very small tiles for CPU
+        "--tile_pad", "2"
     ]
     
     sys.stderr.write(f"DEBUG: Running ESRGAN Step {step} with command: {' '.join(command)}\n")
