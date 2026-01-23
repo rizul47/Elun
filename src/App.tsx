@@ -9,6 +9,7 @@ import {
   X,
   Feather,
   Crown,
+  RotateCcw,
 } from "lucide-react";
 
 const App = () => {
@@ -37,31 +38,26 @@ const App = () => {
 
   useEffect(() => setIsLoaded(true), []);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadedImage(file);
-    setProcessedImageUrl(null);
-
+  const processImage = async (imageFile: File) => {
     // Normalize values before sending
     const quality = generatorSettings.quality.toLowerCase();
     const palette = generatorSettings.palette.toLowerCase();
 
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", imageFile);
     fd.append("quality", quality);
     fd.append("palette", palette);
 
     console.log("Sending to backend:", {
       quality,
       palette,
-      file: file.name,
+      file: imageFile.name,
     });
 
     try {
       setIsProcessing(true);
-      const res = await fetch("/process", {
+      const apiUrl = import.meta.env.DEV ? "http://localhost:5000/process" : "/process";
+      const res = await fetch(apiUrl, {
         method: "POST",
         body: fd,
       });
@@ -80,6 +76,21 @@ const App = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadedImage(file);
+    setProcessedImageUrl(null);
+    await processImage(file);
+  };
+
+  const handleRegenerate = async () => {
+    if (!uploadedImage) return;
+    setProcessedImageUrl(null);
+    await processImage(uploadedImage);
   };
 
   const exportCanvas = () => {
@@ -140,6 +151,7 @@ const App = () => {
             ))}
             <a
               href="#app"
+              onClick={() => setCurrentSection("home")}
               className="px-8 py-2 border border-gold-accent/50 text-gold-accent font-display tracking-widest hover:bg-gold-accent hover:text-midnight transition-all duration-500 rounded-sm"
             >
               CREATE
@@ -326,28 +338,19 @@ const App = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <h3 className="text-2xl font-display text-gold-accent">3. The Dialect</h3>
-                    <div className="relative">
-                      <select
-                        value={generatorSettings.palette}
-                        onChange={(e) =>
-                          setGeneratorSettings((prev) => ({
-                            ...prev,
-                            palette: e.target.value.toLowerCase(),
-                          }))
-                        }
-                        className="w-full appearance-none bg-black/50 border border-white/20 px-6 py-4 font-body text-xl text-white outline-none focus:border-gold-accent transition-colors cursor-pointer"
+                  {/* Regenerate Button */}
+                  {uploadedImage && (
+                    <div className="space-y-4">
+                      <button
+                        onClick={handleRegenerate}
+                        disabled={isProcessing}
+                        className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-gold-accent/20 to-purple-900/20 border border-gold-accent/50 text-gold-accent font-display tracking-widest hover:from-gold-accent/40 hover:to-purple-900/40 hover:border-gold-accent transition-all duration-500 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <option value="math">Mathematical Symbols</option>
-                        <option value="ascii">Classical ASCII</option>
-                        <option value="greek">Greek Alphabet</option>
-                      </select>
-                      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-gold-accent">
-                        ▼
-                      </div>
+                        <RotateCcw className="w-5 h-5" />
+                        REGENERATE
+                      </button>
                     </div>
-                  </div>
+                  )}
 
                 </div>
               </div>

@@ -146,7 +146,7 @@ def extract_regions():
     print("Done! All segmented region images saved in:", output_dir)
 
 # Script 3 code - INTEGRATED WITH YOUR PROVIDED LOGIC
-def create_math_face():
+def create_math_face(palette='math'):
     # ---------------- Config ----------------
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)  # Go up one level from face-parsing.PyTorch
@@ -173,6 +173,31 @@ def create_math_face():
     16: ['Σ', 'π', '∑', 'λ', 'Ψ', 'Ω'],        # Hair n
     17: ['Σ', 'π', '∑', 'λ', 'Ψ', 'Ω']         # Hair (alt / background overlap) n
 }
+    
+    # ASCII charset - only classical ASCII characters (no math symbols)
+    region_symbols_ascii = {
+    1:  ['@', '%', '#', '*', '&'],              # Face (skin)
+    2:  ['-', '=', '_', '~', '-'],              # Eyebrow L
+    3:  ['-', '=', '_', '~', '-'],              # Eyebrow R
+    4:  ['0', 'o', 'O', '8', 'Q'],              # Eye L
+    5:  ['0', 'o', 'O', '8', 'Q'],              # Eye R
+    6:  ['[', ']', '|', '||', '[]'],            # Eyeglasses
+    7:  ['(', ')', 'C', 'c', '3'],              # Ear L
+    8:  ['(', ')', 'C', 'c', '3'],              # Ear R
+    9:  ['-', '=', '|', '+', 'x'],              # Nose Glasses Bridge
+    10: ['|', '||', '+', 'l', 'I'],             # Nose
+    11: ['n', 'u', 'm', 'w', 'V'],              # Mouth Interior / Teeth
+    12: ['^', 'v', 'n', 'u', '_'],              # Lower lip
+    13: ['^', 'v', 'n', 'u', '_'],              # Upper lip
+    14: ['I', 'l', '|', '1', 'L'],              # Neck
+    15: ['*', '+', 'T', 't', '?'],              # Hat / Head accessory
+    16: ['W', 'w', 'M', 'm', '~'],              # Hair
+    17: ['W', 'w', 'M', 'm', '~']               # Hair (alt / background overlap)
+}
+
+    # Select the appropriate symbol map based on palette
+    if palette.lower() == 'ascii':
+        region_symbols_map = region_symbols_ascii
 
     region_opacity_map = {
         4: 170, 5: 170,                   # Eyes - full opacity (100%)
@@ -434,10 +459,19 @@ if __name__ == "__main__":
     project_root = os.path.dirname(script_dir)
     
     # Accept image path from command line, default to test_img if not provided
+    # Format: python test.py <image_path> [quality] [palette]
+    test_img_path = os.path.join(project_root, "test_img")
+    quality = "low"
+    palette = "math"
+    
     if len(sys.argv) > 1:
         test_img_path = sys.argv[1]
-    else:
-        test_img_path = os.path.join(project_root, "test_img")
+    if len(sys.argv) > 2:
+        quality = sys.argv[2].lower()
+    if len(sys.argv) > 3:
+        palette = sys.argv[3].lower()
+    
+    print(f"DEBUG: test.py called with quality={quality}, palette={palette}")
     
     evaluate(
         dspth=test_img_path,
@@ -447,5 +481,5 @@ if __name__ == "__main__":
     # Run script 2
     extract_regions()
 
-    # Run script 3
-    create_math_face()
+    # Run script 3 - Pass palette to create_math_face
+    create_math_face(palette=palette)

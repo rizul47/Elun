@@ -9,6 +9,7 @@ from pathlib import Path
 import glob
 import subprocess
 import shutil
+from PIL import Image
 
 app = FastAPI()
 
@@ -26,8 +27,8 @@ BACKEND_DIR = Path(__file__).resolve().parent
 
 # Key directories (all relative to backend folder)
 TEST_IMG_DIR = BACKEND_DIR / "test_img"
-ESRGAN_ROOT = BACKEND_DIR / "ImageUpscaler" / "Real-ESRGAN"
-ESRGAN_SCRIPT = BACKEND_DIR / "Real-ESRGAN" / "inference_realesrgan.py"
+ESRGAN_ROOT = BACKEND_DIR / "Real-ESRGAN"
+ESRGAN_SCRIPT = ESRGAN_ROOT / "inference_realesrgan.py"
 ESRGAN_INPUT_DIR = ESRGAN_ROOT / "inputs"
 ESRGAN_OUTPUT_DIR = ESRGAN_ROOT / "results"
 FACE_PARSING_DIR = BACKEND_DIR / "face-parsing.PyTorch"
@@ -55,23 +56,24 @@ def run_esrgan_upscale(script_dir: Path, input_output_dir: Path, input_file_name
         raise HTTPException(status_code=500, detail=f"ESRGAN input file not found: {input_path}")
     
     # Optimization: Adaptive tile size based on image dimensions
+    # Tile sizes MUST be even to avoid assertion errors
     try:
         img = Image.open(input_path)
         img_area = img.size[0] * img.size[1]
         
         if img_area > 200000:  # Large image
-            tile_size = "8"
-            tile_pad = "1"
+            tile_size = "128"  # Even tile size
+            tile_pad = "2"
         elif img_area > 100000:  # Medium image
-            tile_size = "12"
+            tile_size = "256"  # Even tile size
             tile_pad = "2"
         else:  # Small image
-            tile_size = "16"
+            tile_size = "512"  # Even tile size
             tile_pad = "2"
         
-        sys.stderr.write(f"DEBUG: ESRGAN adaptive settings - Image: {img.size}, Tile: {tile_size}x{tile_size}\n")
+        sys.stderr.write(f"DEBUG: ESRGAN adaptive settings - Image: {img.size}, Area: {img_area}, Tile: {tile_size}\n")
     except Exception as e:
-        tile_size = "16"
+        tile_size = "256"
         tile_pad = "2"
         sys.stderr.write(f"DEBUG: Using default tile settings: {e}\n")
     
@@ -151,29 +153,61 @@ async def process_image(
     esrgan_initial_input_path = ESRGAN_INPUT_DIR / uploaded_file_name
     try:
         data = await file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
+        
         with open(esrgan_initial_input_path, "wb") as out:
             out.write(data)
+        
+        # Verify file was saved
+        if not esrgan_initial_input_path.exists():
+            raise HTTPException(status_code=500, detail=f"File save failed: {esrgan_initial_input_path}")
+        
+        sys.stderr.write(f"DEBUG: Uploaded file saved: {esrgan_initial_input_path} ({len(data)} bytes)\n")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {exc}")
 
     # --- Optimization: Pre-process input image for faster upscaling ---
     try:
         img = Image.open(esrgan_initial_input_path)
+        sys.stderr.write(f"DEBUG: Image opened successfully: {img.size}, mode: {img.mode}\n")
         
-        # Optimize 1: Compress if too large (save with lower JPG quality)
-        if img.size[0] > 800 or img.size[1] > 800:
-            img.thumbnail((800, 800), Image.LANCZOS)
-            img.save(esrgan_initial_input_path, quality=85)
-            sys.stderr.write(f"DEBUG: Pre-compressed input to {img.size}\n")
-        
-        # Optimize 2: Convert to RGB if needed (RGBA → RGB)
+        # Convert to RGB first if needed
         if img.mode != "RGB":
-            img_rgb = Image.new("RGB", img.size, (255, 255, 255))
-            img_rgb.paste(img, mask=img.split()[3] if img.mode == "RGBA" else None)
-            img_rgb.save(esrgan_initial_input_path, quality=90)
-            sys.stderr.write(f"DEBUG: Converted {img.mode} to RGB\n")
+            sys.stderr.write(f"DEBUG: Converting {img.mode} to RGB\n")
+            if img.mode == "RGBA":
+                img_rgb = Image.new("RGB", img.size, (255, 255, 255))
+                img_rgb.paste(img, mask=img.split()[3])
+                img = img_rgb
+            else:
+                img = img.convert("RGB")
+        
+        # Resize if too large (max 512 for better performance)
+        max_size = 512
+        if img.size[0] > max_size or img.size[1] > max_size:
+            img.thumbnail((max_size, max_size), Image.LANCZOS)
+            sys.stderr.write(f"DEBUG: Resized to {img.size}\n")
+        
+        # CRITICAL: Ensure dimensions are EVEN (divisible by 2) for ESRGAN
+        width, height = img.size
+        new_width = width - (width % 2)  # Make even
+        new_height = height - (height % 2)  # Make even
+        
+        if new_width != width or new_height != height:
+            img = img.crop((0, 0, new_width, new_height))
+            sys.stderr.write(f"DEBUG: Cropped to even dimensions: {img.size}\n")
+        
+        # Verify dimensions are even
+        assert img.size[0] % 2 == 0 and img.size[1] % 2 == 0, f"Dimensions still odd: {img.size}"
+        
+        # Save as JPEG
+        img.save(esrgan_initial_input_path, format="JPEG", quality=85)
+        sys.stderr.write(f"DEBUG: Preprocessed image saved with dimensions {img.size}\n")
     except Exception as e:
-        sys.stderr.write(f"DEBUG: Pre-processing warning (non-critical): {e}\n")
+        sys.stderr.write(f"ERROR: Pre-processing failed: {e}\n")
+        raise HTTPException(status_code=500, detail=f"Image preprocessing failed: {e}")
 
     # --- Handle ESRGAN Quality Options ---
     if quality == "low":
@@ -182,44 +216,108 @@ async def process_image(
     elif quality in {"medium", "high"}:
         input_file_name = uploaded_file_name
         
+        # Clean outputs before ESRGAN step 1
+        for f in ESRGAN_OUTPUT_DIR.glob("*.*"):
+            try:
+                os.remove(f)
+            except Exception:
+                pass
+        
         # ESRGAN Step 1
-        run_esrgan_upscale(ESRGAN_SCRIPT.parent, ESRGAN_ROOT, input_file_name, 1)
+        try:
+            run_esrgan_upscale(ESRGAN_SCRIPT.parent, ESRGAN_ROOT, input_file_name, 1)
+        except Exception as e:
+            sys.stderr.write(f"ESRGAN Step 1 failed: {str(e)}\n")
+            raise
         
         # Search for output files - try multiple patterns
-        output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob("*.png"))  # Direct children
+        output_files_step1 = []
+        for ext in ["*.png", "*.jpg", "*.jpeg"]:
+            output_files_step1.extend(list(ESRGAN_OUTPUT_DIR.glob(ext)))
         if not output_files_step1:
-            output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob("*/*.png"))  # One level deep
+            for ext in ["*.png", "*.jpg", "*.jpeg"]:
+                output_files_step1.extend(list(ESRGAN_OUTPUT_DIR.glob(f"*/{ext}")))
         if not output_files_step1:
-            output_files_step1 = list(ESRGAN_OUTPUT_DIR.glob("**/*.png"))  # Recursive
+            for ext in ["*.png", "*.jpg", "*.jpeg"]:
+                output_files_step1.extend(list(ESRGAN_OUTPUT_DIR.glob(f"**/{ext}")))
         
         if not output_files_step1:
             output_contents = list(ESRGAN_OUTPUT_DIR.rglob("*"))
             content_names = [str(p.relative_to(ESRGAN_OUTPUT_DIR)) for p in output_contents[:20]]
+            sys.stderr.write(f"ESRGAN Step 1 output files not found. Directory: {ESRGAN_OUTPUT_DIR}\n")
+            sys.stderr.write(f"Contents: {content_names}\n")
             raise HTTPException(status_code=500, 
                 detail=f"ESRGAN Step 1 output not found. Directory: {ESRGAN_OUTPUT_DIR}. Contents: {content_names}")
         
         
         first_output_image = max(output_files_step1, key=lambda p: p.stat().st_mtime)
+        sys.stderr.write(f"DEBUG: ESRGAN Step 1 output found: {first_output_image}\n")
 
         if quality == "high":
-            # ESRGAN Step 2
-            for f in ESRGAN_INPUT_DIR.glob("*.*"):
-                os.remove(f)
+            # ESRGAN Step 2 - Load and fix dimensions FIRST
+            step1_img = Image.open(first_output_image)
+            width, height = step1_img.size
+            sys.stderr.write(f"DEBUG: Step 1 output size: {step1_img.size}\n")
             
-            shutil.copy(first_output_image, ESRGAN_INPUT_DIR / input_file_name)
-            run_esrgan_upscale(ESRGAN_SCRIPT.parent, ESRGAN_ROOT, input_file_name, 2)
+            # Ensure EVEN dimensions (divisible by 2)
+            new_width = width - (width % 2)
+            new_height = height - (height % 2)
+            
+            if new_width != width or new_height != height:
+                step1_img = step1_img.crop((0, 0, new_width, new_height))
+                sys.stderr.write(f"DEBUG: Step 2 input cropped to even dimensions: {step1_img.size}\n")
+            
+            # Verify dimensions are even
+            assert step1_img.size[0] % 2 == 0 and step1_img.size[1] % 2 == 0, f"Step 2 input dimensions not even: {step1_img.size}"
+            
+            # Now clean up directories
+            for f in ESRGAN_INPUT_DIR.glob("*.*"):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
+            
+            for f in ESRGAN_OUTPUT_DIR.glob("*.*"):
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
+            
+            # Save the processed image for Step 2 as PNG to preserve exact dimensions
+            step1_img.save(ESRGAN_INPUT_DIR / input_file_name, format="JPEG", quality=95)
+            
+            # Verify saved file has even dimensions
+            verify_img = Image.open(ESRGAN_INPUT_DIR / input_file_name)
+            if verify_img.size[0] % 2 != 0 or verify_img.size[1] % 2 != 0:
+                sys.stderr.write(f"ERROR: Saved image has odd dimensions: {verify_img.size}\n")
+                raise HTTPException(status_code=500, detail=f"Step 2 input has odd dimensions after save: {verify_img.size}")
+            sys.stderr.write(f"DEBUG: Step 2 input saved and verified with size {verify_img.size}\n")
+            
+            try:
+                run_esrgan_upscale(ESRGAN_SCRIPT.parent, ESRGAN_ROOT, input_file_name, 2)
+            except Exception as e:
+                sys.stderr.write(f"ESRGAN Step 2 failed: {str(e)}\n")
+                raise
 
             # Search for output files from Step 2
-            output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob("*.png"))
+            output_files_step2 = []
+            for ext in ["*.png", "*.jpg", "*.jpeg"]:
+                output_files_step2.extend(list(ESRGAN_OUTPUT_DIR.glob(ext)))
             if not output_files_step2:
-                output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob("*/*.png"))
+                for ext in ["*.png", "*.jpg", "*.jpeg"]:
+                    output_files_step2.extend(list(ESRGAN_OUTPUT_DIR.glob(f"*/{ext}")))
             if not output_files_step2:
-                output_files_step2 = list(ESRGAN_OUTPUT_DIR.glob("**/*.png"))
+                for ext in ["*.png", "*.jpg", "*.jpeg"]:
+                    output_files_step2.extend(list(ESRGAN_OUTPUT_DIR.glob(f"**/{ext}")))
             
             if not output_files_step2:
-                raise HTTPException(status_code=500, detail="ESRGAN Step 2 output not found.")
+                output_contents = list(ESRGAN_OUTPUT_DIR.rglob("*"))
+                content_names = [str(p.relative_to(ESRGAN_OUTPUT_DIR)) for p in output_contents[:20]]
+                sys.stderr.write(f"ESRGAN Step 2 output files not found. Contents: {content_names}\n")
+                raise HTTPException(status_code=500, detail=f"ESRGAN Step 2 output not found. Contents: {content_names}")
             
             final_output_image = max(output_files_step2, key=lambda p: p.stat().st_mtime)
+            sys.stderr.write(f"DEBUG: ESRGAN Step 2 output found: {final_output_image}\n")
         else:
             final_output_image = first_output_image
 
@@ -232,7 +330,7 @@ async def process_image(
 
     try:
         completed = subprocess.run(
-            ["python", str(FACE_PARSING_SCRIPT), str(final_input_for_face_parsing)],
+            ["python", str(FACE_PARSING_SCRIPT), str(final_input_for_face_parsing), quality, palette],
             cwd=str(FACE_PARSING_DIR),
             capture_output=True,
             text=True,
