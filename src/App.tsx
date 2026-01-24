@@ -331,10 +331,9 @@ const App = () => {
                   <div className="space-y-6">
                     <h3 className="text-2xl font-display text-gold-accent">2. The Complexity</h3>
                     <div className="flex flex-wrap gap-4">
-                      {/* Preserving exactly the titles: Low, Medium, High */}
+                      {/* Preserving exactly the titles: Low, Medium */}
                       <QualityButton value="low" label="Low" />
                       <QualityButton value="medium" label="Medium" />
-                      <QualityButton value="high" label="High" />
                     </div>
                   </div>
 
