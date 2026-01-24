@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-import os
+# Version 1.1 - High mode optimization in progressimport os
 import sys
 from pathlib import Path
 import glob
